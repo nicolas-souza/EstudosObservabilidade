@@ -1,0 +1,32 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+exporters:
+  # Configuração correta do logging exporter
+  logging:
+    verbosity: detailed   # Opções válidas: "normal", "detailed" ou "basic"
+
+  loki:
+    endpoint: http://loki:3100/loki/api/v1/push
+    timeout: 10s
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+
+processors:
+  batch:
+    timeout: 5s
+    send_batch_size: 1000
+
+service:
+  pipelines:
+    logs:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [loki, logging]
