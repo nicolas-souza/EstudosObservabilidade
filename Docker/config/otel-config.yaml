@@ -7,9 +7,8 @@ receivers:
         endpoint: 0.0.0.0:4318
 
 exporters:
-  # Configuração correta do logging exporter
   logging:
-    verbosity: detailed   # Opções válidas: "normal", "detailed" ou "basic"
+    verbosity: detailed
 
   loki:
     endpoint: http://loki:3100/loki/api/v1/push
@@ -18,6 +17,11 @@ exporters:
       enabled: true
       initial_interval: 5s
       max_interval: 30s
+
+  otlp:
+    endpoint: "tempo:4317" 
+    tls:
+      insecure: true
 
 processors:
   batch:
@@ -30,3 +34,8 @@ service:
       receivers: [otlp]
       processors: [batch]
       exporters: [loki, logging]
+    
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlp]

@@ -1,8 +1,21 @@
+
 using OpenTelemetry;
 using OpenTelemetry.Logs;
 using OpenTelemetry.Resources;
-
+using OpenTelemetry.Trace;
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddOpenTelemetry().WithTracing((options) =>
+{
+    options.SetResourceBuilder(ResourceBuilder.CreateDefault().AddService(builder.Configuration["OTEL_SERVICE_NAME"] ?? "api"))
+           .AddAspNetCoreInstrumentation()
+           .AddHttpClientInstrumentation()
+           .AddOtlpExporter(otel =>
+           {
+               otel.Protocol = OpenTelemetry.Exporter.OtlpExportProtocol.Grpc;
+               otel.Endpoint = new Uri(builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"]!);
+           });
+});
 
 builder.Logging.ClearProviders();
 
@@ -32,7 +45,7 @@ builder.Services.AddLogging(loggingBuilder =>
 
         logging.AddOtlpExporter(otlpOptions =>
         {
-            otlpOptions.Endpoint = new Uri("http://otel-collector:4317");
+            otlpOptions.Endpoint = new Uri(builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"] ?? "http://otel-collector:4317");
             otlpOptions.Protocol = OpenTelemetry.Exporter.OtlpExportProtocol.Grpc;
             otlpOptions.Headers = "X-Scope-OrgID=otel";
             otlpOptions.ExportProcessorType = ExportProcessorType.Simple;
@@ -50,7 +63,7 @@ builder.Logging.SetMinimumLevel(LogLevel.Warning);
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-AppContext.SetSwitch("System.Net.Http.SocketsHttpHandler.Http2UnencryptedSupport", true);
+// AppContext.SetSwitch("System.Net.Http.SocketsHttpHandler.Http2UnencryptedSupport", true);
 
 var app = builder.Build();
 
@@ -74,7 +87,7 @@ var summaries = new[]
 app.MapGet("/weatherforecast", () =>
 {
     logger.LogInformation("Realizando GET /weatherforecast");
-    
+
     var forecast =  Enumerable.Range(1, 5).Select(index =>
         new WeatherForecast
         (

@@ -38,6 +38,16 @@ services:
     volumes:
       - "./config/loki-config.yaml:/etc/loki/config.yaml"
     command: -config.file=/etc/loki/config.yaml
+
+  tempo:
+    image: grafana/tempo:latest
+    container_name: tempo
+    command: ["-config.file=/etc/tempo/tempo-config.yaml"]
+    volumes:
+      - ./config/tempo-config.yaml:/etc/tempo/tempo-config.yaml
+      - tempo_data:/tmp/tempo
+    ports:
+      - "3200:3200"
   grafana:
     image: grafana/grafana:latest
     environment:
@@ -52,3 +62,4 @@ services:
       - ./grafana:/etc/grafana/provisioning
 volumes:
   loki-data:
+  tempo_data: {}
