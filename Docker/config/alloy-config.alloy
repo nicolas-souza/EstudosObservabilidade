@@ -1,0 +1,55 @@
+// Configuração do Grafana Alloy para coleta de dados de observabilidade
+
+// Receptor OTLP para traces e logs
+otelcol.receiver.otlp "default" {
+  grpc {
+    endpoint = "0.0.0.0:4317"
+  }
+
+  http {
+    endpoint = "0.0.0.0:4318"
+  }
+
+  output {
+    traces = [otelcol.processor.batch.default.input]
+    logs   = [otelcol.processor.batch.default.input]
+  }
+}
+
+// Processador em lote para otimização
+otelcol.processor.batch "default" {
+  timeout         = "5s"
+  send_batch_size = 1000
+
+  output {
+    traces = [otelcol.exporter.otlp.tempo.input]
+    logs   = [otelcol.exporter.loki.default.input]
+  }
+}
+
+// Exportador para Tempo (traces)
+otelcol.exporter.otlp "tempo" {
+  client {
+    endpoint = "tempo:4317"
+    tls {
+      insecure = true
+    }
+  }
+}
+
+// Exportador para Loki (logs)
+otelcol.exporter.loki "default" {
+  forward_to = [loki.write.default.receiver]
+}
+
+loki.write "default" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}
+
+// Configuração de logging do Alloy
+logging {
+  level  = "info"
+  format = "logfmt"
+}

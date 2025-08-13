@@ -1,14 +1,14 @@
 version: '3'
 services:
-  chef-api:
+  api:
     build:
       context: ../API # Certifique-se de que este caminho está correto para sua API .NET
       dockerfile: Dockerfile
-    container_name: chef-api
+    container_name: api
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://0.0.0.0:5198
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4317
       - OTEL_SERVICE_NAME=api
       - OTEL_RESOURCE_ATTRIBUTES=service.namespace=observability
       - OTEL_TRACES_EXPORTER=otlp
@@ -18,18 +18,24 @@ services:
     ports:
       - "5198:5198"
     depends_on:
-      - otel-collector
-  otel-collector:
-    image: otel/opentelemetry-collector-contrib:0.96.0
+      - alloy
+  alloy:
+    image: grafana/alloy:latest
+    container_name: alloy
     volumes:
-      - ./config/otel-config.yaml:/etc/otel/config.yaml
-    command:
-      - '--config=/etc/otel/config.yaml'
+      - ./config/alloy-config.alloy:/etc/alloy/config.alloy
+    command: 
+      - run
+      - /etc/alloy/config.alloy
+      - --server.http.listen-addr=0.0.0.0:12345
+      - --storage.path=/var/lib/alloy/data
     ports:
       - "4317:4317" #grpc
-      - "4318:4318" #http
+      - "4318:4318" #http  
+      - "12345:12345" #alloy ui
     depends_on:
       - loki
+      - tempo
   loki:
     image: grafana/loki:3.4.1
     container_name: loki
@@ -45,7 +51,7 @@ services:
     command: ["-config.file=/etc/tempo/tempo-config.yaml"]
     volumes:
       - ./config/tempo-config.yaml:/etc/tempo/tempo-config.yaml
-      - tempo_data:/tmp/tempo
+      - tempo_data:/var/tempo
     ports:
       - "3200:3200"
   grafana:
