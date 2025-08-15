@@ -58,7 +58,7 @@ loki.process "all_logs" {
 
 // Processador específico para filtrar apenas logs de erro
 loki.process "error_filter" {
-  forward_to = [loki.write.errors.receiver]
+  forward_to = [otelcol.exporter.otlp.alloy_errors.input]
   
   // Dropar logs que NÃO são FATAL, ERROR ou WARN (inverter a lógica)
   stage.match {
@@ -69,9 +69,19 @@ loki.process "error_filter" {
   // Adicionar labels específicos para logs de erro filtrados
   stage.labels {
     values = {
-      filtered_by = "alloy-error-processor",
-      pipeline = "error-only",
-      is_error = "true",
+      filtered_by = "alloy-main",
+      pipeline = "error-filter",
+      forwarded_to = "alloy-errors",
+    }
+  }
+}
+
+// Exportador OTLP para enviar logs filtrados para alloy-errors
+otelcol.exporter.otlp "alloy_errors" {
+  client {
+    endpoint = "alloy-errors:4317"
+    tls {
+      insecure = true
     }
   }
 }
@@ -85,19 +95,6 @@ loki.write "all" {
   external_labels = {
     instance = "alloy-main",
     processor = "all-data",
-  }
-}
-
-loki.write "errors" {
-  endpoint {
-    url = "http://loki-errors:3100/loki/api/v1/push"
-  }
-  
-  // Labels específicos para logs de erro
-  external_labels = {
-    instance = "alloy-main",
-    processor = "error-filtered",
-    loki_instance = "loki-errors",
   }
 }
 
