@@ -3,4 +3,26 @@
 GET {{API_HostAddress}}/weatherforecast/
 Accept: application/json
 
-###
+### Teste de erro intencional - deve ser capturado pelo alloy-errors
+GET {{API_HostAddress}}/weatherforecast/error
+Accept: application/json
+
+### Teste de log Debug (não deve ir para alloy-errors)
+GET {{API_HostAddress}}/weatherforecast/logs/debug
+Accept: application/json
+
+### Teste de log Info (não deve ir para alloy-errors)
+GET {{API_HostAddress}}/weatherforecast/logs/info
+Accept: application/json
+
+### Teste de log Warning (não deve ir para alloy-errors)
+GET {{API_HostAddress}}/weatherforecast/logs/warning
+Accept: application/json
+
+### Teste de log Error (DEVE ir para alloy-errors)
+GET {{API_HostAddress}}/weatherforecast/logs/error
+Accept: application/json
+
+### Teste de log Critical (DEVE ir para alloy-errors)
+GET {{API_HostAddress}}/weatherforecast/logs/critical
+Accept: application/json

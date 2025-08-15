@@ -1,0 +1,79 @@
+// Configuração do Grafana Alloy específica para receber e processar apenas erros
+// Este Alloy recebe APENAS erros do Alloy principal e os envia para Loki e Tempo
+
+// Receptor OTLP para receber logs e traces de erro do Alloy principal
+otelcol.receiver.otlp "errors" {
+  grpc {
+    endpoint = "0.0.0.0:4317"
+  }
+
+  http {
+    endpoint = "0.0.0.0:4318"
+  }
+
+  output {
+    traces = [otelcol.processor.attributes.error_enrichment.input]
+    logs   = [otelcol.processor.attributes.error_enrichment.input]
+  }
+}
+
+// Processador para enriquecer logs e traces de erro com metadados adicionais
+otelcol.processor.attributes "error_enrichment" {
+  action {
+    key    = "error_processing_instance"
+    value  = "alloy-errors"
+    action = "insert"
+  }
+
+  output {
+    traces = [otelcol.processor.batch.errors.input]
+    logs   = [otelcol.processor.batch.errors.input]
+  }
+}
+
+// Processador em lote para erros
+otelcol.processor.batch "errors" {
+  timeout         = "1s"
+  send_batch_size = 50
+
+  output {
+    traces = [otelcol.exporter.otlp.tempo.input]
+    logs   = [otelcol.exporter.loki.errors.input]
+  }
+}
+
+// Exportador para Tempo (traces de erro)
+otelcol.exporter.otlp "tempo" {
+  client {
+    endpoint = "tempo-errors:4317"
+    tls {
+      insecure = true
+    }
+  }
+}
+
+// Exportador para Loki específico para logs de erro
+otelcol.exporter.loki "errors" {
+  forward_to = [loki.write.errors.receiver]
+}
+
+loki.write "errors" {
+  endpoint {
+    url = "http://loki-errors:3100/loki/api/v1/push"
+  }
+  
+  // Labels específicos para logs de erro - ÚNICOS PARA IDENTIFICAÇÃO
+  external_labels = {
+    instance = "alloy-errors",
+    severity = "error",
+    processor = "error-only",
+    source = "filtered-errors",
+    loki_instance = "loki-errors",
+  }
+}
+
+// Configuração de logging do Alloy
+logging {
+  level  = "debug"
+  format = "logfmt"
+}

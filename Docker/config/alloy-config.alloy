@@ -1,4 +1,5 @@
 // Configuração do Grafana Alloy para coleta de dados de observabilidade
+// Este Alloy coleta tudo da API e repassa apenas ERROS para alloy-errors usando loki.relabel
 
 // Receptor OTLP para traces e logs
 otelcol.receiver.otlp "default" {
@@ -11,23 +12,23 @@ otelcol.receiver.otlp "default" {
   }
 
   output {
-    traces = [otelcol.processor.batch.default.input]
-    logs   = [otelcol.processor.batch.default.input]
+    traces = [otelcol.processor.batch.all_data.input]
+    logs   = [otelcol.processor.batch.all_data.input]
   }
 }
 
-// Processador em lote para otimização
-otelcol.processor.batch "default" {
-  timeout         = "5s"
-  send_batch_size = 1000
+// Processador em lote para TODOS os dados
+otelcol.processor.batch "all_data" {
+  timeout         = "2s"
+  send_batch_size = 100
 
   output {
     traces = [otelcol.exporter.otlp.tempo.input]
-    logs   = [otelcol.exporter.loki.default.input]
+    logs   = [otelcol.exporter.loki.all.input]
   }
 }
 
-// Exportador para Tempo (traces)
+// Exportador para Tempo (todos os traces)
 otelcol.exporter.otlp "tempo" {
   client {
     endpoint = "tempo:4317"
@@ -37,19 +38,71 @@ otelcol.exporter.otlp "tempo" {
   }
 }
 
-// Exportador para Loki (logs)
-otelcol.exporter.loki "default" {
-  forward_to = [loki.write.default.receiver]
+// Exportador para Loki (todos os logs)
+otelcol.exporter.loki "all" {
+  forward_to = [loki.process.all_logs.receiver]
 }
 
-loki.write "default" {
+// Processador principal que recebe TODOS os logs
+loki.process "all_logs" {
+  forward_to = [loki.write.all.receiver, loki.process.error_filter.receiver]
+  
+  // Adicionar labels de processamento para todos os logs
+  stage.labels {
+    values = {
+      processed_by = "alloy-main",
+      pipeline = "all-logs",
+    }
+  }
+}
+
+// Processador específico para filtrar apenas logs de erro
+loki.process "error_filter" {
+  forward_to = [loki.write.errors.receiver]
+  
+  // Dropar logs que NÃO são FATAL, ERROR ou WARN (inverter a lógica)
+  stage.match {
+    selector = `{level!~"FATAL|ERROR|WARN"}`
+    action   = "drop"
+  }
+  
+  // Adicionar labels específicos para logs de erro filtrados
+  stage.labels {
+    values = {
+      filtered_by = "alloy-error-processor",
+      pipeline = "error-only",
+      is_error = "true",
+    }
+  }
+}
+
+loki.write "all" {
   endpoint {
     url = "http://loki:3100/loki/api/v1/push"
+  }
+  
+  // Labels para todos os logs
+  external_labels = {
+    instance = "alloy-main",
+    processor = "all-data",
+  }
+}
+
+loki.write "errors" {
+  endpoint {
+    url = "http://loki-errors:3100/loki/api/v1/push"
+  }
+  
+  // Labels específicos para logs de erro
+  external_labels = {
+    instance = "alloy-main",
+    processor = "error-filtered",
+    loki_instance = "loki-errors",
   }
 }
 
 // Configuração de logging do Alloy
 logging {
-  level  = "info"
+  level  = "debug"
   format = "logfmt"
 }

@@ -36,6 +36,7 @@ services:
     depends_on:
       - loki
       - tempo
+
   loki:
     image: grafana/loki:3.4.1
     container_name: loki
@@ -43,6 +44,15 @@ services:
       - "3100:3100"
     volumes:
       - "./config/loki-config.yaml:/etc/loki/config.yaml"
+    command: -config.file=/etc/loki/config.yaml
+
+  loki-errors:
+    image: grafana/loki:3.4.1
+    container_name: loki-errors
+    ports:
+      - "3101:3100"
+    volumes:
+      - "./config/loki-errors-config.yaml:/etc/loki/config.yaml"
     command: -config.file=/etc/loki/config.yaml
 
   tempo:
@@ -54,6 +64,36 @@ services:
       - tempo_data:/var/tempo
     ports:
       - "3200:3200"
+  
+  tempo-errors:
+    image: grafana/tempo:latest
+    container_name: tempo-errors
+    command: ["-config.file=/etc/tempo/tempo-config.yaml"]
+    volumes:
+      - ./config/tempo-errors-config.yaml:/etc/tempo/tempo-config.yaml
+      - tempo_errors_data:/var/tempo
+    ports:
+      - "3201:3200"
+  
+  # Segunda instância do Alloy para receber apenas erros
+  alloy-errors:
+    image: grafana/alloy:latest
+    container_name: alloy-errors
+    volumes:
+      - ./config/alloy-errors-config.alloy:/etc/alloy/config.alloy
+    command: 
+      - run
+      - /etc/alloy/config.alloy
+      - --server.http.listen-addr=0.0.0.0:12346
+      - --storage.path=/var/lib/alloy/data
+    ports:
+      - "4319:4317" #grpc para receber erros
+      - "4320:4318" #http para receber erros 
+      - "12346:12346" #alloy errors ui
+    depends_on:
+      - loki-errors
+      - tempo-errors
+
   grafana:
     image: grafana/grafana:latest
     environment:
@@ -69,3 +109,4 @@ services:
 volumes:
   loki-data:
   tempo_data: {}
+  tempo_errors_data: {}
